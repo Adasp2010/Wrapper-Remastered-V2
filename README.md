@@ -1,134 +1,151 @@
-# Node.JS zip file interpreter
 
-This projects intends to create/read [PKZIP](http://en.wikipedia.org/wiki/PKZIP) file format.
+[![Build Status](https://travis-ci.org/nfarina/xmldoc.svg)](https://travis-ci.org/nfarina/xmldoc)
+[![Coverage Status](https://coveralls.io/repos/github/nfarina/xmldoc/badge.svg?branch=master)](https://coveralls.io/github/nfarina/xmldoc?branch=master)
 
-## Install
+## Introduction
 
-    npm install kyriosli/node-zip
+`xmldoc` lets you parse XML documents with ease. It's a pure-JavaScript, one-file XML document class with a single dependency on the excellent [`sax`][sax] parser.
+
+For more on why I wrote this class, see the [blog post][blog].
+
+  [blog]: http://nfarina.com/post/34302964969/a-lightweight-xml-document-class-for-nodejs-javascript
+
+## Release Notes
+
+See [CHANGELOG.md](./CHANGELOG.md) for details (built with [GitHub Changelog Generator](https://skywinder.github.io/github-changelog-generator/)).
+
+## Installation
+
+    npm install xmldoc
+
+Or just download the repository and include it in your `node_modules` directly. Or just download the [single JS file][blob]!
+
+  [blob]: https://github.com/nfarina/xmldoc/blob/master/lib/xmldoc.js
+
+## Installation - React Native
+
+I haven't tested this myself but [installing `buffer` and `stream` separately](https://github.com/nfarina/xmldoc/issues/38) may be necessary for `xmldoc` to work on React Native:
+
+    npm install buffer stream xmldoc
 
 ## Usage
 
 ```js
-    var zip = require('node-zip');
-    var zipFile = zip.create();
-    // or
-    var zipFile = zip.unzip('test.zip');
+var xmldoc = require('xmldoc');
 
-    zipFile.add('index.html', new Buffer('<p>Hello world</p>'));
-    zipFile.zip().then(function(buffer) {
-        fs.writeFile('test.zip', buffer);
-    });
+var document = new xmldoc.XmlDocument("<some>xml</some>");
 
-    // The following code shows how to response to a http request with content inside a zip file:
-    var zipEntry = zipFile['index.html'];
-    if(/\bdeflate\b/.test(req.headers['accept-encoding'])) {
-        // write compressed content to browser
-        res.setHeader('Content-Encoding', 'deflate');
-        zipEntry.pipe(res);
-    } else {
-        res.setHeader('Content-Length', zipEntry.originalSize);
-        zipEntry.toReadStream().pipe(res);
-    }
+// do things
 ```
 
-## API Reference
+## Classes
 
-### Module Methods
+The primary exported class is `XmlDocument`, which you'll use to consume your XML text. `XmlDocument` contains a hierarchy of `XmlElement` instances representing the XML structure.
 
-#### exports.create
+Both `XmlElement` and `XmlDocument` contain the same members and methods you can call to traverse the document or a subtree.
 
-    function create(optional object entries)
+## Members
 
-Creates a new `ZipFile`.
+* `name` - the node name, like "tat" for `<tat>`. XML "namespaces" are ignored by the underlying [sax-js](https://github.com/isaacs/sax-js) parser, so you'll simply get "office:body" for `<office:body>`.
+* `attr` - an object dict containing attribute properties, like `bookNode.attr.title` for `<book title="...">`.
+* `val` - the string "value" of the node, if any, like "world" for `<hello>world</hello>`.
+* `children` - an array of `XmlElement` children of the node.
+* `firstChild`, `lastChild` - pretty much what it sounds like; null if no children
+* `line`, `column`, `position`, `startTagPosition` - information about the element's original position in the XML string.
 
-`entries` can be a map of file name and buffer that would be added to the zipFile created.
+Each member defaults to a sensible "empty" value like `{}` for `attr`, `[]` for `children`, and `""` for `val`.
 
-#### exports.unzip
+## Methods
 
-    function unzip(string|number|Buffer file)
+All methods with `child` in the name operate only on direct children; they do not do a deep/recursive search.
 
-Creates a `ZipFile` from existing file. `file` can be a file path, or fd, or a buffer.
+It's important to note that `xmldoc` is designed for when you know exactly what you want from your XML file. For instance, it's great for parsing API responses with known structures, but it's not great at teasing things out of HTML documents from the web.
 
-### class ZipFile
+If you need to do lots of searching through your XML document, I highly recommend trying a different library like [node-elementtree](https://github.com/racker/node-elementtree).
 
-Represents a PKZIP file
+### eachChild(func)
 
-#### Methods
+Similar to [underscore's][underscore] `each` method, it will call `func(child, index, array)` for each child of the given node.
 
-##### ZipFile.add
+### childNamed(name)
 
-    function add(string name, Buffer content, optional object options)
+Pass it the name of a child node and it will search for and return the first one found, or `undefined`.
 
-Adds a zip file entry
+### childrenNamed(name)
 
-##### ZipFile\[name\]
+Like `childNamed` but returns all matching children in an array, or `[]`.
 
-Gets a zip file entry by its name. File Entry name is of UNIX file name format, with no heading slash, for example:
-`README.md` or `test/index.js`
+### childWithAttribute(name,value)
 
-##### ZipFile.entries
+Searches for the first child with the given attribute value. You can omit `value` to just find the first node with the given attribute defined at all.
 
-    function entries()
+### descendantWithPath(path)
 
-Returns a file entry iterator, which yields `[name, entry]`
+Searches for a specific "path" using dot notation. Example:
 
-##### ZipFile\[Symbol.iterator\]
+```xml
+<book>
+  <author>
+    <name isProper="true">George R. R. Martin</name>
+    ...
+  </author>
+  ...
+</book>
+```
 
-    function iterator()
+If you just want the `<name>` node and you have the `XmlElement` for the `<book>` node, you can say:
 
-Returns a file entry iterator, which yields `entry`
+```js
+var nameNode = bookNode.descendantWithPath("author.name"); // return <name> node
+```
 
-##### ZipFile.zip
+### valueWithPath(path)
 
-    function zip()
+Just like `descendantWithPath`, but goes deeper and extracts the `val` of the node. Example:
 
-Returns a `Promise`, which resolves a `buffer` when all file entries are compressed and joined together.
+```js
+var authorName = bookNode.valueWithPath("author.name"); // return "George R. R. Martin"
+```
 
-### class ZipEntry
+You can also use the `@` character to request the value of a particular _attribute_ instead:
 
-Represents an entry of a PKZIP file
+```js
+var authorIsProper = bookNode.valueWithPath("author.name@isProper"); // return "true"
+```
 
-#### Fields
+This is not [XPath][]! It's just a thing I made up, OK?
 
-##### ZipEntry.name
+### toString([options])
 
-The file name of this zip file entry. Note that non-ascii file names is treated as `UTF-8` encoded
+This is just an override of the standard JavaScript method, it will give you a string representation of your XML document or element. Note that this is for debugging only! It is not guaranteed to always output valid XML.
 
-##### ZipEntry.originalSize
+The default implementation of `toString()`, that is, the one you get when you just `console.log("Doc: " + myDoc)` will pretty-print the XML with linebreaks and indents. You can pass a couple options to control the output:
 
-The uncompressed size of the zipped file, in bytes.
+```js
+xml.toString({compressed:true}) // strips indents and linebreaks
+xml.toString({trimmed:true}) // trims long strings for easier debugging
+xml.toString({preserveWhitespace:true}) // prevents whitespace being removed from around element values
+```
 
-##### ZipEntry.isDir
+Putting it all together:
 
-Whether a zip entry is directory.
+```js
+var xml = "<author><name>looooooong value</name></author>";
+console.log("My document: \n" + new XmlDocument(xml).toString({trimmed:true}))
+```
 
-##### ZipEntry.crc32
+Prints:
 
-The crc32 checksum of the original content.
+    My Document:
+    <hello>
+      loooooooo…
+    </hello>
 
-#### Methods
+## Feedback
 
-##### ZipEntry.inflate
+Feel free to file issues or hit me up on [Twitter][twitter].
 
-    function inflate()
-
-Returns a `Promise` that resolves a `buffer` when file entry content is read and inflated.
-
-##### ZipEntry.toReadStream
-
-    function toReadStream()
-
-Returns a `stream.Readable` that contains the inflated content.
-
-##### ZipEntry.pipe
-
-    function pipe(Writable writable)
-
-Writes the compressed content to a writable object.
-
-  - If the ZipFile that contains this entry is created from original content, the content will be compressed.
-  - Otherwise, the original compressed content will be written
-
-Note that even `compressed = false` is given when adding a file entry, the file entry content is still compressed, with
-options: `level = 0` which means no compression is performed, but zlib header and trailer will be appended.
-
+  [underscore]: http://underscorejs.org
+  [XPath]: http://en.wikipedia.org/wiki/XPath
+  [twitter]: http://twitter.com/nfarina
+  [sax]: https://github.com/isaacs/sax-js
