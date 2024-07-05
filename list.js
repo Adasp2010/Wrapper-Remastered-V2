@@ -1,46 +1,5 @@
-/* Looking for a written form of the themes list?
-"action"
-"akon"
-"animal"
-"anime"
-"ben10"
-"bizmodels"
-"botdf"
-"bunny"
-"business"
-"cc_store"
-"chibi"
-"chowder"
-"christmas"
-"common"
-"commoncraft"
-"custom"
-"domo"
-"fullenergy"
-"infographics"
-"monkeytalk"
-"monstermsh"
-"ninja"
-"ninjaanime"
-"politic"
-"politics2"
-"retro"
-"sf"
-"space"
-"spacecitizen"
-"startrek"
-"stick"
-"sticklybiz"
-"street"
-"underdog"
-"vietnam"
-"whiteboard"
-"willie"
-*/
-
+const movie = require("./main");
 const http = require("http");
-const fUtil = require("../misc/file");
-const folder = process.env.THEME_FOLDER;
 
 /**
  * @param {http.IncomingMessage} req
@@ -49,8 +8,7 @@ const folder = process.env.THEME_FOLDER;
  * @returns {boolean}
  */
 module.exports = function (req, res, url) {
-	if (req.method != "POST" || url.path != "/goapi/getThemeList/") return;
-	res.setHeader("Content-Type", "application/zip");
-	fUtil.makeZip(`${folder}/_themelist.xml`, "themelist.xml").then((b) => res.end(b));
+	if (req.method != "GET" || url.pathname != "/movieList") return;
+	Promise.all(movie.list().map(movie.meta)).then((a) => res.end(JSON.stringify(a)));
 	return true;
 };

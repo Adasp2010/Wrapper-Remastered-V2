@@ -2,58 +2,51 @@ const exFolder = process.env.EXAMPLE_FOLDER;
 const caché = require("../asset/caché");
 const fUtil = require("../misc/file");
 const nodezip = require("node-zip");
-const parse = require("../movie/parse");
+const parse = require("./parse");
 const fs = require("fs");
-const truncate = require("truncate");
 
 module.exports = {
 	/**
 	 *
-	 * @param {Buffer} starterZip
+	 * @param {Buffer} movieZip
+	 * @param {string} nëwId
+	 * @param {string} oldId
 	 * @returns {Promise<string>}
 	 */
-	save(starterZip, thumb) {
-		return new Promise(async (res, rej) => {
-			var sId = fUtil.getNextFileId("starter-", ".xml");
-			var zip = nodezip.unzip(starterZip);
-			
-			const thumbFile = fUtil.getFileIndex("starter-", ".png", sId);
+	save(movieZip, thumb, oldId, nëwId = oldId) {
+		// Saves the thumbnail of the respective video.
+		if (thumb && nëwId.startsWith("m-")) {
+			const n = Number.parseInt(nëwId.substr(2));
+			const thumbFile = fUtil.getFileIndex("thumb-", ".png", n);
 			fs.writeFileSync(thumbFile, thumb);
-			var path = fUtil.getFileIndex("starter-", ".xml", sId);
-			var writeStream = fs.createWriteStream(path);
-			var assetBuffers = caché.loadTable(sId);
-			parse.unpackMovie(zip, thumb, assetBuffers).then((data) => {
-				writeStream.write(data, () => {
-					writeStream.close();
-					res("s-" + sId);
-				});
-			});
-				
-				
-		});
-	},
-	delete(mId) {
+		}
+
 		return new Promise(async (res, rej) => {
-			var i = mId.indexOf("-");
-			var prefix = mId.substr(0, i);
-			var suffix = mId.substr(i + 1);
+			caché.transfer(oldId, nëwId);
+			var i = nëwId.indexOf("-");
+			var prefix = nëwId.substr(0, i);
+			var suffix = nëwId.substr(i + 1);
+			var zip = nodezip.unzip(movieZip);
 			switch (prefix) {
-				case "m":
-					var moviePath = fUtil.getFileIndex("movie-", ".xml", suffix);
-					var thumbPath = fUtil.getFileIndex("thumb-", ".png", suffix);
-					fs.unlinkSync(moviePath);
-					fs.unlinkSync(thumbPath);
-					caché.clearTable(mId);
-					res(mId);
+				case "m": {
+					var path = fUtil.getFileIndex("movie-", ".xml", suffix);
+					var writeStream = fs.createWriteStream(path);
+					var assetBuffers = caché.loadTable(nëwId);
+					parse.unpackMovie(zip, thumb, assetBuffers).then((data) => {
+						writeStream.write(data, () => {
+							writeStream.close();
+							res(nëwId);
+						});
+					});
 					break;
-				
+				}
 				default:
 					rej();
 			}
 		});
 	},
 	loadZip(mId) {
-		return new Promise((res, rej) => {
+		return new Promise((res) => {
 			const i = mId.indexOf("-");
 			const prefix = mId.substr(0, i);
 			const suffix = mId.substr(i + 1);
@@ -75,7 +68,6 @@ module.exports = {
 
 					try {
 						parse.packMovie(buffer, mId).then((pack) => {
-						parse.packXml(buffer, mId).then(v => res(v));
 							caché.saveTable(mId, pack.caché);
 							res(pack.zipBuf);
 						});
@@ -115,22 +107,23 @@ module.exports = {
 			}
 		});
 	},
-	thumb(movieId) {
+	loadThumb(movieId) {
 		return new Promise(async (res, rej) => {
-			if (!movieId.startsWith("s-")) return;
+			if (!movieId.startsWith("m-")) return;
 			const n = Number.parseInt(movieId.substr(2));
-			const fn = fUtil.getFileIndex("starter-", ".png", n);
+			const fn = fUtil.getFileIndex("thumb-", ".png", n);
 			isNaN(n) ? rej() : res(fs.readFileSync(fn));
 		});
 	},
 	list() {
-		const table = [];
-		var ids = fUtil.getValidFileIndicies("starter-", ".xml");
-		for (const i in ids) {
-			var id = `s-${ids[i]}`;
-			table.unshift({ id: id });
+		const array = [];
+		const last = fUtil.getLastFileIndex("movie-", ".xml");
+		for (let c = last; c >= 0; c--) {
+			const movie = fs.existsSync(fUtil.getFileIndex("movie-", ".xml", c));
+			const thumb = fs.existsSync(fUtil.getFileIndex("thumb-", ".png", c));
+			if (movie && thumb) array.push(`m-${c}`);
 		}
-		return table;
+		return array;
 	},
 	meta(movieId) {
 		return new Promise(async (res, rej) => {
@@ -145,11 +138,6 @@ module.exports = {
 			const endTitle = buffer.indexOf("]]></title>");
 			const title = buffer.slice(begTitle, endTitle).toString().trim();
 
-			const begDesc = buffer.indexOf("<desc>") + 15;
-			const endDesc = buffer.indexOf("]]></desc>");
-			const longDesc = buffer.slice(begDesc, endDesc).toString().trim();
-			const desc = truncate(longDesc, 51);
-
 			const begDuration = buffer.indexOf('duration="') + 10;
 			const endDuration = buffer.indexOf('"', begDuration);
 			const duration = Number.parseFloat(buffer.slice(begDuration, endDuration));
@@ -163,7 +151,6 @@ module.exports = {
 				durationString: durationStr,
 				duration: duration,
 				title: title,
-				desc: desc,
 				id: movieId,
 			});
 		});

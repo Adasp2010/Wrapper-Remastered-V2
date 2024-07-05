@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<list version="1.0">
+	<fvm_meta theme_code="" is_biz="0" />
+	
+	<theme id="retro" name="Cartoon Classics" thumb="ann-stand.swf" cc_theme_id="retro" />
+	<theme id="stick" name="Stick Figure" thumb="" cc_theme_id="stick" />
+	
+	<theme id="yugandar" name="Yugandar's World 2.5" thumb="" cc_theme_id="yugandar" />
+	<theme id="common" name="Common" thumb="" cc_theme_id="common" />
+	
+	
+        <theme id="custom" name="Comedy World" thumb="" cc_theme_id="custom" />
+
+	<!-- I planned to disable botdf, but i'm gonna ask you guys first -->
+	<!-- What's botdf? ~CLarramore -->
+	<!--BOTDF is a cancelled cc2 theme. It dosen't really have much in it, so I was suggesting we remove it-->
+	<word>mikiko,vikiko</word>
+	<whiteword />
+	<excludeAssetIDs />
+	<points money="0" sharing="0" />
+</list>
