@@ -1,5 +1,5 @@
-const movie = require("./main");
-const base = Buffer.alloc(1, 0);
+const loadPost = require("../misc/post_body");
+const character = require("./main");
 const http = require("http");
 
 /**
@@ -8,51 +8,43 @@ const http = require("http");
  * @param {import("url").UrlWithParsedQuery} url
  * @returns {boolean}
  */
-module.exports = function (req, res, url) {
+module.exports = function (req, res) {
 	switch (req.method) {
 		case "GET": {
-			const match = req.url.match(/\/movies\/([^.]+)(?:\.(zip|xml))?$/);
+			const match = req.url.match(/\/characters\/([^.]+)(?:\.xml)?$/);
 			if (!match) return;
 
 			var id = match[1];
-			var ext = match[2];
-			switch (ext) {
-				case "zip":
-					res.setHeader("Content-Type", "application/zip");
-					movie.loadZip(id).then((v) => {
-						if (v) {
-							res.statusCode = 200;
-							res.end(v);
-						} else {
-							res.statusCode = 404;
-							res.end();
-						}
-					});
-					break;
-				default:
-					res.setHeader("Content-Type", "text/xml");
-					movie.loadXml(id).then((v) => {
-						if (v) {
-							res.statusCode = 200;
-							res.end(v);
-						} else {
-							res.statusCode = 404;
-							res.end();
-						}
-					});
-					break;
-			}
+			res.setHeader("Content-Type", "text/xml");
+			character
+				.load(id)
+				.then((v) => {
+					(res.statusCode = 200), res.end(v);
+				})
+				.catch((e) => {
+					(res.statusCode = 404), res.end(e);
+				});
 			return true;
 		}
 
 		case "POST": {
-			if (!url.path.startsWith("/goapi/getMovie/")) return;
-			res.setHeader("Content-Type", "application/zip");
+			if (req.url != "/goapi/getCcCharCompositionXml/") return;
+			loadPost(req, res).then(async ([data]) => {
+				res.setHeader("Content-Type", "text/html; charset=UTF-8");
+				character
+					.load(data.assetId || data.original_asset_id)
+					.then((v) => {
+						(res.statusCode = 200), res.end(0 + v);
+					})
+					//.catch(e => { res.statusCode = 404, res.end(1 + e) })
 
-			movie
-				.loadZip(url.query.movieId)
-				.then((b) => res.end(Buffer.concat([base, b])))
-				.catch(() => res.end("1"));
+					// Character not found?	Why not load my archnemesis instead?
+					.catch(() =>
+						character.load("a-306687427").then((v) => {
+							(res.statusCode = 200), res.end(0 + v);
+						})
+					);
+			});
 			return true;
 		}
 		default:
